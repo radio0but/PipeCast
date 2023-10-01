@@ -20,6 +20,8 @@ private:
     QLineEdit *portLineEdit;
     QLineEdit *userLineEdit;
     QLineEdit *passwordLineEdit;
+    QLineEdit *mountPointLineEdit;  // Add this line
 };
 
 #endif // MAINWINDOW_H
+

@@ -12,13 +12,14 @@ find_package(Qt5 COMPONENTS Widgets REQUIRED)
 
 pkg_check_modules(PIPEWIRE REQUIRED libpipewire-0.3)
 pkg_check_modules(SHOUT REQUIRED shout)
+pkg_check_modules(OGG REQUIRED ogg)
 
-include_directories(${PIPEWIRE_INCLUDE_DIRS} ${SHOUT_INCLUDE_DIRS})
+include_directories(${PIPEWIRE_INCLUDE_DIRS} ${SHOUT_INCLUDE_DIRS} ${OGG_INCLUDE_DIRS})
 
 add_executable(IcecastStreamer
     main.cpp
     mainwindow.cpp
-    streamer.c
+    streamer.cpp  # <-- Change here
 )
 
-target_link_libraries(IcecastStreamer Qt5::Widgets ${PIPEWIRE_LIBRARIES} ${SHOUT_LIBRARIES})
+target_link_libraries(IcecastStreamer vorbis vorbisenc Qt5::Widgets /usr/lib/libpipewire-0.3.so /usr/lib/libshout.so ${OGG_LIBRARIES})

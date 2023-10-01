@@ -4,20 +4,23 @@
 #include <QFormLayout>
 #include <QPushButton>
 
-
 MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
     QFormLayout *layout = new QFormLayout;
 
-    QLineEdit *serverLineEdit = new QLineEdit(this);
-    QLineEdit *portLineEdit = new QLineEdit(this);
-    QLineEdit *userLineEdit = new QLineEdit(this);
-    QLineEdit *passwordLineEdit = new QLineEdit(this);
+    serverLineEdit = new QLineEdit(this);
+    portLineEdit = new QLineEdit(this);
+    userLineEdit = new QLineEdit(this);
+    passwordLineEdit = new QLineEdit(this);
+    mountPointLineEdit = new QLineEdit(this);
+
     passwordLineEdit->setEchoMode(QLineEdit::Password);
 
     layout->addRow(new QLabel("Icecast Server:"), serverLineEdit);
     layout->addRow(new QLabel("Port:"), portLineEdit);
     layout->addRow(new QLabel("User:"), userLineEdit);
     layout->addRow(new QLabel("Password:"), passwordLineEdit);
+    layout->addRow(new QLabel("Mount Point:"), mountPointLineEdit);
+
 
     QPushButton *startButton = new QPushButton("Start Streaming", this);
     connect(startButton, &QPushButton::clicked, this, &MainWindow::startStreaming);
@@ -31,9 +34,9 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
 }
 
 
-extern "C" {
+
 #include "streamer.h"
-}
+
 
 void MainWindow::startStreaming() {
     // Get values from UI components and pass them to the streaming function
@@ -41,11 +44,11 @@ void MainWindow::startStreaming() {
         serverLineEdit->text().toStdString().c_str(),
         portLineEdit->text().toStdString().c_str(),
         userLineEdit->text().toStdString().c_str(),
-        passwordLineEdit->text().toStdString().c_str()
+        passwordLineEdit->text().toStdString().c_str(),
+        mountPointLineEdit->text().toStdString().c_str() 
     );
 }
 
 void MainWindow::stopStreaming() {
     stopStream();
 }
-
