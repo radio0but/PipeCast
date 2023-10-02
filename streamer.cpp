@@ -45,6 +45,18 @@ static struct spa_hook core_event_listener;
 static uint32_t virtualSourceNodeId = PW_ID_ANY;
 static uint32_t n_channels = 2;  // default to stereo, but you can later modify this
 
+static void on_stream_state_changed(void *user_data, enum pw_stream_state old, enum pw_stream_state state, const char *error);
+static void on_process(void *user_data);
+static int init_shout(const char *server, const char *port, const char *user, const char *password, const char *mount_point);
+static const struct spa_pod *global_format = NULL;
+
+// Definition of format_changed callback
+static void on_format_changed(void *user_data, const struct spa_pod *format) {
+    global_format = format;
+}
+
+// Your pw_stream_events structure
+
 void print_audio_snippet(signed char *data, size_t size) {
     std::cout << "Audio Data Snippet: ";
     for (size_t i = 0; i < std::min(size_t(10), size); i++) {
@@ -87,121 +99,6 @@ private:
 static AdaptiveBuffer adaptive_buffer(READ);
 AdaptiveBuffer AdaptiveBuffer::adaptive_buffer(1048576);
 
-static void on_process(void *user_data) {
-    std::cout << "Processing stream data..." << std::endl;
-
-    pw_buffer *buf = const_cast<pw_buffer*>(pw_stream_dequeue_buffer(stream));
-    struct spa_buffer *buffer;
-
-    if (!buf) {
-        std::cerr << "Failed to dequeue buffer." << std::endl;
-        return;
-    }
-
-    buffer = buf->buffer;
-
-    // Adjust buffer size based on how full it is
-    float buffer_fullness = static_cast<float>(buffer->datas[0].chunk->size) / static_cast<float>(adaptive_buffer.get_size());
-    if (buffer_fullness > 0.8f && adaptive_buffer.get_size() < MAX_BUFFER_SIZE) {
-        adaptive_buffer.resize(adaptive_buffer.get_size() * 1.5);
-    } else if (buffer_fullness < 0.3f && adaptive_buffer.get_size() > MIN_BUFFER_SIZE) {
-        adaptive_buffer.resize(adaptive_buffer.get_size() * 0.5);
-    }
-
-    if (buffer->datas[0].data && buffer->datas[0].chunk->size > 0) {
-        float buffer_fullness = static_cast<float>(buffer->datas[0].chunk->size) / static_cast<float>(adaptive_buffer.get_size());
-        
-        if (buffer_fullness > 0.8f && adaptive_buffer.get_size() < MAX_BUFFER_SIZE) {
-            adaptive_buffer.resize(adaptive_buffer.get_size() * 1.5);
-        } else if (buffer_fullness < 0.3f && adaptive_buffer.get_size() > MIN_BUFFER_SIZE) {
-            adaptive_buffer.resize(adaptive_buffer.get_size() * 0.5);
-        }
-
-        // Calculate the number of samples.
-        int num_samples = buffer->datas[0].chunk->size / (n_channels * 2);  // Assuming 16-bit stereo samples.
-
-        // Check for valid number of samples.
-        if (num_samples <= 0) {
-            std::cerr << "Invalid number of samples." << std::endl;
-            return;
-        }
-
-        // Get the buffer from Vorbis to copy audio samples into.
-        float **buffer_vorbis = vorbis_analysis_buffer(&vd, num_samples);
-
-        // Continue with the rest of the logic...
-    
-
-        
-        std::cout << "Buffer Size: " << adaptive_buffer.get_size() << " Data Size: " << buffer->datas[0].chunk->size << std::endl;
-        print_audio_snippet((signed char*) buffer->datas[0].data, buffer->datas[0].chunk->size);
-
-        // Use adaptive_buffer.get_data() instead of readbuffer
-      
-
-
-        // Getting the PCM data from the PipeWire buffer
-        signed char* pcm_data = (signed char*) buffer->datas[0].data;
-
-        // Assuming 16-bit samples
-        int last_i = 0;
-        for (int i = 0; i < buffer->datas[0].chunk->size/4; i++) {
-            buffer_vorbis[0][i] = ((pcm_data[i*4+1]<<8)|
-                                   (0x00ff&(int)pcm_data[i*4]))/32768.f;
-            buffer_vorbis[1][i] = ((pcm_data[i*4+3]<<8)|
-                                   (0x00ff&(int)pcm_data[i*4+2]))/32768.f;
-            last_i = i;
-        }
-
-        vorbis_analysis_wrote(&vd, last_i);
-
-        while(vorbis_analysis_blockout(&vd, &vb) == 1) {
-            vorbis_analysis(&vb, &op);
-            vorbis_bitrate_addblock(&vb);
-
-            while(vorbis_bitrate_flushpacket(&vd, &op)) {
-                ogg_stream_packetin(&os, &op);
-
-                while(1) {
-                    int result = ogg_stream_pageout(&os, &og);
-                    if(result==0) break;
-
-                    // Send the OGG data to Icecast
-                    int ret;
-                    ret = shout_send(shout_stream, og.header, og.header_len);
-                    if (ret != SHOUTERR_SUCCESS) {
-                        std::cerr << "Error sending header data: " << shout_get_error(shout_stream) << std::endl;
-                    }
-
-                    ret = shout_send(shout_stream, og.body, og.body_len);
-                    if (ret != SHOUTERR_SUCCESS) {
-                        std::cerr << "Error sending body data: " << shout_get_error(shout_stream) << std::endl;
-                    }
-
-                }
-            }
-        }
-        
-        pw_stream_queue_buffer(stream, buf);
-    }
-}
-
-
-// On stream state changed event, don't quit the main loop on PAUSED state. It might disrupt the process.
-static void on_stream_state_changed(void *user_data, enum pw_stream_state old, enum pw_stream_state state, const char *error) {
-    switch (state) {
-        case PW_STREAM_STATE_PAUSED:
-            std::cout << "Stream is paused." << std::endl;
-            break;
-        case PW_STREAM_STATE_ERROR:
-            std::cerr << "Error while creating PipeCast node: " << error << std::endl;
-            pw_main_loop_quit(pipewire_loop);
-            break;
-        default:
-            break;
-    }
-}
-
 static const pw_registry_events registry_events = {
     PW_VERSION_REGISTRY_EVENTS,
     .global = registry_event_global
@@ -211,7 +108,7 @@ static const pw_stream_events stream_events = {
     .state_changed = on_stream_state_changed,
     .process = on_process
 };
-// Function to create the PipeCast node programmatically
+
 uint32_t create_pipe_cast_node(pw_core *core) {
     uint8_t buffer[1024];
 
@@ -245,49 +142,6 @@ uint32_t create_pipe_cast_node(pw_core *core) {
     // So you don't need to return it directly here. It's stored in the virtualSourceNodeId variable.
     return virtualSourceNodeId;  
 }
-
-
-
-// Initialize and configure libshout
-static int init_shout(const char *server, const char *port, const char *user, const char *password, const char *mount_point) {
-    std::cout << "Initializing libshout..." << std::endl;
-
-    shout_stream = shout_new();
-    if (!shout_stream) {
-        std::cerr << "shout_new() failed." << std::endl;
-        return -1;
-    }
-
-    shout_set_host(shout_stream, server);
-    shout_set_port(shout_stream, std::atoi(port));
-    shout_set_user(shout_stream, user);
-    shout_set_password(shout_stream, password);
-    shout_set_content_format(shout_stream, SHOUT_FORMAT_OGG, SHOUT_USAGE_UNKNOWN, NULL);
-    shout_set_protocol(shout_stream, SHOUT_PROTOCOL_HTTP);
-    
-    shout_set_mount(shout_stream, mount_point);
-    if (shout_open(shout_stream) != SHOUTERR_SUCCESS) {
-        std::cerr << "Failed to open Icecast connection. Error: " << shout_get_error(shout_stream) << std::endl;
-        std::cerr << "Debugging - shout_open() returned error code: " << shout_get_errno(shout_stream) << std::endl;
-        return -1;
-    }
-
-    return 0;
-}
-
-// This is the function that will be called for each global object.
-void registry_event_global(void *data, uint32_t id, uint32_t parent_id,
-                           const char* type, uint32_t version, const struct spa_dict *props) {
-    const char *str;
-    std::cout << "Debug: Found object with ID: " << id << " and type: " << type << std::endl;
-    if ((str = spa_dict_lookup(props, PW_KEY_MEDIA_NAME)) && strcmp(str, "PipeCast") == 0) {
-        std::cout << "Debug: Found PipeCast with ID: " << id << std::endl;
-        virtualSourceNodeId = id;
-    }
-}
-
-
-
 
 
 void startStream(const char *server, const char *port, const char *user, const char *password, const char *mount_point) {
@@ -340,7 +194,7 @@ void startStream(const char *server, const char *port, const char *user, const c
     // Initialize Vorbis after connecting the PipeWire stream
     vorbis_info_init(&vi);
 
-    if (vorbis_encode_init_vbr(&vi,2,44100,0.4)){
+    if (vorbis_encode_init_vbr(&vi, n_channels, 44100, 0.4)) {  // Use n_channels instead of hard-coded value
         std::cerr << "Failed to initialize Vorbis encoder." << std::endl;
         return;
     }
@@ -354,8 +208,178 @@ void startStream(const char *server, const char *port, const char *user, const c
     ogg_stream_init(&os, rand()); // Unique ID using random number
 
     pw_main_loop_run(pipewire_loop);
-    
 }
+
+
+static void on_process(void *user_data) {
+    std::cout << "Processing stream data..." << std::endl;
+
+    pw_buffer *buf = const_cast<pw_buffer*>(pw_stream_dequeue_buffer(stream));
+    struct spa_buffer *buffer;
+
+    if (!buf) {
+        std::cerr << "Failed to dequeue buffer." << std::endl;
+        return;
+    }
+
+    buffer = buf->buffer;
+
+    uint32_t node_id = pw_stream_get_node_id(stream);
+    if (node_id == PW_ID_ANY) {
+        std::cerr << "Failed to get node id." << std::endl;
+        return;
+    }
+
+    // Check if global_format is non-null before proceeding
+    if (global_format == NULL) {
+        std::cerr << "global_format is NULL." << std::endl;
+        return;
+    }
+
+    struct spa_audio_info_raw info;
+    if (spa_format_audio_raw_parse(global_format, &info) < 0) {
+        std::cerr << "Failed to parse format." << std::endl;
+        return;
+    }
+
+    uint32_t bytes_per_sample = SPA_AUDIO_FORMAT_IS_PLANAR(info.format) ? info.channels : 1;
+    int num_samples = buffer->datas[0].chunk->size / (info.channels * bytes_per_sample);
+
+
+    // Adjust buffer size based on how full it is
+    
+    if (buffer->datas[0].data && buffer->datas[0].chunk->size > 0) {
+        float buffer_fullness = static_cast<float>(buffer->datas[0].chunk->size) / static_cast<float>(adaptive_buffer.get_size());
+        
+        if (buffer_fullness > 0.8f && adaptive_buffer.get_size() < MAX_BUFFER_SIZE) {
+            adaptive_buffer.resize(adaptive_buffer.get_size() * 1.5);
+        } else if (buffer_fullness < 0.3f && adaptive_buffer.get_size() > MIN_BUFFER_SIZE) {
+            adaptive_buffer.resize(adaptive_buffer.get_size() * 0.5);
+        }
+
+        // Calculate the number of samples.
+        int num_samples = buffer->datas[0].chunk->size / (n_channels * bytes_per_sample);
+
+        float **buffer_vorbis = vorbis_analysis_buffer(&vd, num_samples);
+        // Check for valid number of samples.
+        if (num_samples <= 0) {
+            std::cerr << "Invalid number of samples." << std::endl;
+            return;
+        }
+
+        std::cout << "Buffer Size: " << adaptive_buffer.get_size() << " Data Size: " << buffer->datas[0].chunk->size << std::endl;
+        print_audio_snippet((signed char*) buffer->datas[0].data, buffer->datas[0].chunk->size);
+
+        // Getting the PCM data from the PipeWire buffer
+        signed char* pcm_data = (signed char*) buffer->datas[0].data;
+
+        // Assuming 16-bit samples
+        int last_i = 0;
+        for (int i = 0; i < buffer->datas[0].chunk->size/4; i++) {
+            buffer_vorbis[0][i] = ((pcm_data[i*4+1]<<8)|
+                                   (0x00ff&(int)pcm_data[i*4]))/32768.f;
+            buffer_vorbis[1][i] = ((pcm_data[i*4+3]<<8)|
+                                   (0x00ff&(int)pcm_data[i*4+2]))/32768.f;
+            last_i = i;
+        }
+
+        vorbis_analysis_wrote(&vd, last_i);
+        
+        while(vorbis_analysis_blockout(&vd, &vb) == 1) {
+            vorbis_analysis(&vb, &op);
+            vorbis_bitrate_addblock(&vb);
+
+            while(vorbis_bitrate_flushpacket(&vd, &op)) {
+                ogg_stream_packetin(&os, &op);
+
+                while(1) {
+                    int result = ogg_stream_pageout(&os, &og);
+                    if(result==0) break;
+
+                    // Send the OGG data to Icecast
+                    int ret;
+                    ret = shout_send(shout_stream, og.header, og.header_len);
+                    if (ret != SHOUTERR_SUCCESS) {
+                        std::cerr << "Error sending header data: " << shout_get_error(shout_stream) << std::endl;
+                    }
+
+                    ret = shout_send(shout_stream, og.body, og.body_len);
+                    if (ret != SHOUTERR_SUCCESS) {
+                        std::cerr << "Error sending body data: " << shout_get_error(shout_stream) << std::endl;
+                    }
+
+                }
+            }
+        }
+        
+        pw_stream_queue_buffer(stream, buf);
+    }
+}
+
+
+// On stream state changed event, don't quit the main loop on PAUSED state. It might disrupt the process.
+static void on_stream_state_changed(void *user_data, enum pw_stream_state old, enum pw_stream_state state, const char *error) {
+    switch (state) {
+        case PW_STREAM_STATE_PAUSED:
+            std::cout << "Stream is paused." << std::endl;
+            break;
+        case PW_STREAM_STATE_ERROR:
+            std::cerr << "Error while creating PipeCast node: " << error << std::endl;
+            pw_main_loop_quit(pipewire_loop);
+            break;
+        default:
+            break;
+    }
+}
+
+
+// Function to create the PipeCast node programmatically
+
+
+
+// Initialize and configure libshout
+static int init_shout(const char *server, const char *port, const char *user, const char *password, const char *mount_point) {
+    std::cout << "Initializing libshout..." << std::endl;
+
+    shout_stream = shout_new();
+    if (!shout_stream) {
+        std::cerr << "shout_new() failed." << std::endl;
+        return -1;
+    }
+
+    shout_set_host(shout_stream, server);
+    shout_set_port(shout_stream, std::atoi(port));
+    shout_set_user(shout_stream, user);
+    shout_set_password(shout_stream, password);
+    shout_set_content_format(shout_stream, SHOUT_FORMAT_OGG, SHOUT_USAGE_UNKNOWN, NULL);
+    shout_set_protocol(shout_stream, SHOUT_PROTOCOL_HTTP);
+    
+    shout_set_mount(shout_stream, mount_point);
+    if (shout_open(shout_stream) != SHOUTERR_SUCCESS) {
+        std::cerr << "Failed to open Icecast connection. Error: " << shout_get_error(shout_stream) << std::endl;
+        std::cerr << "Debugging - shout_open() returned error code: " << shout_get_errno(shout_stream) << std::endl;
+        return -1;
+    }
+
+    return 0;
+}
+
+// This is the function that will be called for each global object.
+void registry_event_global(void *data, uint32_t id, uint32_t parent_id,
+                           const char* type, uint32_t version, const struct spa_dict *props) {
+    const char *str;
+    std::cout << "Debug: Found object with ID: " << id << " and type: " << type << std::endl;
+    if ((str = spa_dict_lookup(props, PW_KEY_MEDIA_NAME)) && strcmp(str, "PipeCast") == 0) {
+        std::cout << "Debug: Found PipeCast with ID: " << id << std::endl;
+        virtualSourceNodeId = id;
+    }
+}
+
+
+
+
+
+
 
 void stopStream() {
     std::cout << "Stopping Stream..." << std::endl;
@@ -387,7 +411,7 @@ void stopStream() {
         }
     }
 
-    ogg_stream_clear(&os);
+ ogg_stream_clear(&os);
     vorbis_block_clear(&vb);
     vorbis_dsp_clear(&vd);
     vorbis_comment_clear(&vc);
@@ -398,6 +422,14 @@ void stopStream() {
         shout_free(shout_stream);
         shout_stream = NULL;
     }
+
+    // Added PipeWire cleanup
+    pw_stream_destroy(stream);
+    pw_core_disconnect(core);
+    pw_context_destroy(context);
+    pw_main_loop_destroy(pipewire_loop);
+    
+    pw_deinit();  // Deinitialize PipeWire
 
     // Add any additional cleanup code here if necessary
 
