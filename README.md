@@ -1,39 +1,53 @@
-# PipeCast Project
+# PipeCast: Streaming Client Application
 
-## Project Overview
+PipeCast is a streaming client designed to capture audio and stream it to an Icecast server. The application provides a user-friendly graphical interface that enables users to input the necessary server details and control the streaming process. Leveraging the Qt framework for GUI, PipeWire for audio capture, and libshout, libvorbis, and libogg for encoding and streaming audio data, the app encompasses an adaptive buffer strategy to manage audio data flow efficiently and implements comprehensive error handling to ensure robust operation.
 
-PipeCast is an application designed to capture audio from your system and stream it to an Icecast server. The project is built with Qt for the user interface, PipeWire for audio capture, and libshout for streaming to Icecast. It also uses libvorbis and libogg for audio encoding.
+## Code Overview
 
-## File Structure
+### adaptive_buffer.cpp / adaptive_buffer.h
 
-1. **CMakeLists.txt:**
-    - Setup for the build environment using CMake.
-    - Specifies the minimum required version of CMake, the project name, and the C++ standard to use.
-    - Locates and loads settings for required libraries and packages such as Qt5Widgets, libpipewire-0.3, libshout, and libogg.
+`AdaptiveBuffer` is a class encapsulating a dynamically resizeable buffer to manage audio data. 
 
-2. **main.cpp:**
-    - Entry point of the application.
-    - Initializes a `QApplication` object and a `MainWindow` object, then enters the Qt event loop.
+- `AdaptiveBuffer(size_t initial_size)`: Constructor initializing the buffer with a specified size.
+- `~AdaptiveBuffer()`: Destructor releasing the allocated memory.
+- `resize(size_t new_size)`: Resizes the buffer to the specified new size.
+- `get_data()`: Returns a pointer to the buffer data.
+- `get_size() const`: Returns the current size of the buffer.
 
-3. **mainwindow.h and mainwindow.cpp:**
-    - Define and implement the `MainWindow` class, which is the main GUI window of the application.
-    - Slots for handling the `Start Streaming` and `Stop Streaming` button clicks, which in turn call `startStream()` and `stopStream()` functions from `streamer.h`.
-    - The GUI contains text fields for user input of server details and buttons to control streaming.
+### shout_handler.cpp / shout_handler.h
 
-4. **streamer.h and streamer.cpp:**
-    - Define and implement the streaming functionality of the application.
-    - `startStream()` initializes the streaming process, setting up libshout, PipeWire, and libvorbis/libogg libraries, connecting to the Icecast server, and beginning capturing and streaming audio.
-    - `stopStream()` terminates the streaming process, clears the Vorbis and Ogg structures, closes the shout stream, and cleans up PipeWire resources.
+Handles the initialization and communication with the Icecast server using libshout.
 
-5. **AdaptiveBuffer:**
-    - Manages a buffer that can adapt its size based on the amount of data being processed to ensure efficient handling of varying amounts of audio data.
+- `init_shout(const char *server, const char *port, const char *user, const char *password, const char *mount_point)`: Initializes libshout with the server details.
 
-## Current Project Status
+### main.cpp
 
-The project is in development and is not yet functioning as intended. We are open to contributions and assistance to move the project forward. Feel free to explore the code and provide any feedback or help to improve the functionality and fix existing issues.
+The entry point of the application which creates a QApplication and MainWindow instance, and enters the Qt event loop.
 
-## Contributing
+### mainwindow.cpp / mainwindow.h
 
-If you are interested in contributing, feel free to fork the repository and submit pull requests. Any help in making this project operational is highly appreciated!
+`MainWindow` is a class that sets up the GUI, captures user input, and interacts with the streaming functionality.
+
+- `startStreaming()`: Captures server details from the UI and starts streaming.
+- `stopStreaming()`: Stops the streaming process.
+
+### streamer.cpp / streamer.h
+
+Encapsulates the core streaming functionality.
+
+- `startStream(const char *server, const char *port, const char *user, const char *password, const char *mount_point)`: Initializes the streaming process.
+- `stopStream()`: Halts the streaming process and cleans up resources.
+- `on_process(void *user_data)`: Processes audio data, encodes it, and sends it to the Icecast server.
+- `on_stream_state_changed(void *user_data, enum pw_stream_state old, enum pw_stream_state state, const char *error)`: Handles stream state changes.
+- `registry_event_global(void *data, uint32_t id, uint32_t parent_id, const char* type, uint32_t version, const struct spa_dict *props)`: Handles global objects in the PipeWire registry.
+
+### CMakeLists.txt
+
+Configuration file for building the project using CMake. Specifies dependencies, source files, and linking settings.
+
+## Current State and Contribution
+
+The application is currently in development and is not fully functional yet. We are open to contributions. Feel free to fork the project, make improvements, and submit a pull request.
+
 
 
