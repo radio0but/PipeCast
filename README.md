@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-IcecastStreamer is an application designed to capture audio from your system and stream it to an Icecast server. The project is built with Qt for the user interface, PipeWire for audio capture, and libshout for streaming to Icecast. It also uses libvorbis and libogg for audio encoding.
+PipeCast is an application designed to capture audio from your system and stream it to an Icecast server. The project is built with Qt for the user interface, PipeWire for audio capture, and libshout for streaming to Icecast. It also uses libvorbis and libogg for audio encoding.
 
 ## File Structure
 
