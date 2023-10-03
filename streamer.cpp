@@ -3,8 +3,10 @@ extern "C" {
     #include <pipewire/pipewire.h>
     #include <shout/shout.h>
 }
-
+#include <memory>
 #include "streamer.h"
+#include "shout_handler.h"
+#include "adaptive_buffer.h"
 #include <iostream>
 #include <cstdlib>
 #include <algorithm>
@@ -16,8 +18,8 @@ extern "C" {
 
 // Declare the function registry_event_global before its first usage
 void registry_event_global(void *data, uint32_t id, uint32_t parent_id, const char* type, uint32_t version, const struct spa_dict *props);
-// Declare your static variables
-static shout_t *shout_stream;
+// in shout_handler.h or shout_handler.cpp
+extern shout_t *shout_stream;
 // Variables and constants for Vorbis encoding
 static ogg_stream_state os; 
 static ogg_page         og; 
@@ -47,7 +49,7 @@ static uint32_t n_channels = 2;  // default to stereo, but you can later modify 
 
 static void on_stream_state_changed(void *user_data, enum pw_stream_state old, enum pw_stream_state state, const char *error);
 static void on_process(void *user_data);
-static int init_shout(const char *server, const char *port, const char *user, const char *password, const char *mount_point);
+extern int init_shout(const char *server, const char *port, const char *user, const char *password, const char *mount_point);
 static const struct spa_pod *global_format = NULL;
 
 // Definition of format_changed callback
@@ -65,39 +67,6 @@ void print_audio_snippet(signed char *data, size_t size) {
     std::cout << "..." << std::endl;
 }
 
-
-class AdaptiveBuffer {
-public:
-    static AdaptiveBuffer adaptive_buffer;
-    AdaptiveBuffer(size_t initial_size)
-        : size(initial_size), data(new signed char[initial_size * 4 + 44]) {}
-
-    ~AdaptiveBuffer() {
-        delete[] data;
-    }
-
-    void resize(size_t new_size) {
-        delete[] data;
-        size = new_size;
-        data = new signed char[new_size * 4 + 44];
-    }
-
-    signed char* get_data() {
-        return data;
-    }
-
-    size_t get_size() const {
-        return size;
-    }
-
-private:
-    size_t size;
-    signed char* data;
-};
-
-// Create a static instance of AdaptiveBuffer
-static AdaptiveBuffer adaptive_buffer(READ);
-AdaptiveBuffer AdaptiveBuffer::adaptive_buffer(1048576);
 
 static const pw_registry_events registry_events = {
     PW_VERSION_REGISTRY_EVENTS,
@@ -249,12 +218,12 @@ static void on_process(void *user_data) {
     // Adjust buffer size based on how full it is
     
     if (buffer->datas[0].data && buffer->datas[0].chunk->size > 0) {
-        float buffer_fullness = static_cast<float>(buffer->datas[0].chunk->size) / static_cast<float>(adaptive_buffer.get_size());
+        float buffer_fullness = static_cast<float>(buffer->datas[0].chunk->size) / static_cast<float>(AdaptiveBuffer::adaptive_buffer.get_size());
         
-        if (buffer_fullness > 0.8f && adaptive_buffer.get_size() < MAX_BUFFER_SIZE) {
-            adaptive_buffer.resize(adaptive_buffer.get_size() * 1.5);
-        } else if (buffer_fullness < 0.3f && adaptive_buffer.get_size() > MIN_BUFFER_SIZE) {
-            adaptive_buffer.resize(adaptive_buffer.get_size() * 0.5);
+        if (buffer_fullness > 0.8f && AdaptiveBuffer::adaptive_buffer.get_size() < MAX_BUFFER_SIZE) {
+            AdaptiveBuffer::adaptive_buffer.resize(AdaptiveBuffer::AdaptiveBuffer::adaptive_buffer.get_size() * 1.5);
+        } else if (buffer_fullness < 0.3f && AdaptiveBuffer::adaptive_buffer.get_size() > MIN_BUFFER_SIZE) {
+           AdaptiveBuffer::adaptive_buffer.resize(AdaptiveBuffer::AdaptiveBuffer::adaptive_buffer.get_size() * 0.5);
         }
 
         // Calculate the number of samples.
@@ -267,7 +236,7 @@ static void on_process(void *user_data) {
             return;
         }
 
-        std::cout << "Buffer Size: " << adaptive_buffer.get_size() << " Data Size: " << buffer->datas[0].chunk->size << std::endl;
+        std::cout << "Buffer Size: " << AdaptiveBuffer::adaptive_buffer.get_size() << " Data Size: " << buffer->datas[0].chunk->size << std::endl;
         print_audio_snippet((signed char*) buffer->datas[0].data, buffer->datas[0].chunk->size);
 
         // Getting the PCM data from the PipeWire buffer
@@ -333,36 +302,6 @@ static void on_stream_state_changed(void *user_data, enum pw_stream_state old, e
 }
 
 
-// Function to create the PipeCast node programmatically
-
-
-
-// Initialize and configure libshout
-static int init_shout(const char *server, const char *port, const char *user, const char *password, const char *mount_point) {
-    std::cout << "Initializing libshout..." << std::endl;
-
-    shout_stream = shout_new();
-    if (!shout_stream) {
-        std::cerr << "shout_new() failed." << std::endl;
-        return -1;
-    }
-
-    shout_set_host(shout_stream, server);
-    shout_set_port(shout_stream, std::atoi(port));
-    shout_set_user(shout_stream, user);
-    shout_set_password(shout_stream, password);
-    shout_set_content_format(shout_stream, SHOUT_FORMAT_OGG, SHOUT_USAGE_UNKNOWN, NULL);
-    shout_set_protocol(shout_stream, SHOUT_PROTOCOL_HTTP);
-    
-    shout_set_mount(shout_stream, mount_point);
-    if (shout_open(shout_stream) != SHOUTERR_SUCCESS) {
-        std::cerr << "Failed to open Icecast connection. Error: " << shout_get_error(shout_stream) << std::endl;
-        std::cerr << "Debugging - shout_open() returned error code: " << shout_get_errno(shout_stream) << std::endl;
-        return -1;
-    }
-
-    return 0;
-}
 
 // This is the function that will be called for each global object.
 void registry_event_global(void *data, uint32_t id, uint32_t parent_id,

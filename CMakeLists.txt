@@ -20,6 +20,8 @@ add_executable(IcecastStreamer
     main.cpp
     mainwindow.cpp
     streamer.cpp  # <-- Change here
+    shout_handler.cpp
+    adaptive_buffer.cpp
 )
 
 target_link_libraries(IcecastStreamer vorbis vorbisenc Qt5::Widgets /usr/lib/libpipewire-0.3.so /usr/lib/libshout.so ${OGG_LIBRARIES})

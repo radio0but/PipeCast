@@ -166,6 +166,30 @@ IcecastStreamer_autogen/mocs_compilation.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/IcecastStreamer.dir/build.make CMakeFiles/IcecastStreamer.dir/IcecastStreamer_autogen/mocs_compilation.cpp.s
 .PHONY : IcecastStreamer_autogen/mocs_compilation.cpp.s
 
+adaptive_buffer.o: adaptive_buffer.cpp.o
+.PHONY : adaptive_buffer.o
+
+# target to build an object file
+adaptive_buffer.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/IcecastStreamer.dir/build.make CMakeFiles/IcecastStreamer.dir/adaptive_buffer.cpp.o
+.PHONY : adaptive_buffer.cpp.o
+
+adaptive_buffer.i: adaptive_buffer.cpp.i
+.PHONY : adaptive_buffer.i
+
+# target to preprocess a source file
+adaptive_buffer.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/IcecastStreamer.dir/build.make CMakeFiles/IcecastStreamer.dir/adaptive_buffer.cpp.i
+.PHONY : adaptive_buffer.cpp.i
+
+adaptive_buffer.s: adaptive_buffer.cpp.s
+.PHONY : adaptive_buffer.s
+
+# target to generate assembly for a file
+adaptive_buffer.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/IcecastStreamer.dir/build.make CMakeFiles/IcecastStreamer.dir/adaptive_buffer.cpp.s
+.PHONY : adaptive_buffer.cpp.s
+
 main.o: main.cpp.o
 .PHONY : main.o
 
@@ -214,6 +238,30 @@ mainwindow.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/IcecastStreamer.dir/build.make CMakeFiles/IcecastStreamer.dir/mainwindow.cpp.s
 .PHONY : mainwindow.cpp.s
 
+shout_handler.o: shout_handler.cpp.o
+.PHONY : shout_handler.o
+
+# target to build an object file
+shout_handler.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/IcecastStreamer.dir/build.make CMakeFiles/IcecastStreamer.dir/shout_handler.cpp.o
+.PHONY : shout_handler.cpp.o
+
+shout_handler.i: shout_handler.cpp.i
+.PHONY : shout_handler.i
+
+# target to preprocess a source file
+shout_handler.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/IcecastStreamer.dir/build.make CMakeFiles/IcecastStreamer.dir/shout_handler.cpp.i
+.PHONY : shout_handler.cpp.i
+
+shout_handler.s: shout_handler.cpp.s
+.PHONY : shout_handler.s
+
+# target to generate assembly for a file
+shout_handler.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/IcecastStreamer.dir/build.make CMakeFiles/IcecastStreamer.dir/shout_handler.cpp.s
+.PHONY : shout_handler.cpp.s
+
 streamer.o: streamer.cpp.o
 .PHONY : streamer.o
 
@@ -251,12 +299,18 @@ help:
 	@echo "... IcecastStreamer_autogen/mocs_compilation.o"
 	@echo "... IcecastStreamer_autogen/mocs_compilation.i"
 	@echo "... IcecastStreamer_autogen/mocs_compilation.s"
+	@echo "... adaptive_buffer.o"
+	@echo "... adaptive_buffer.i"
+	@echo "... adaptive_buffer.s"
 	@echo "... main.o"
 	@echo "... main.i"
 	@echo "... main.s"
 	@echo "... mainwindow.o"
 	@echo "... mainwindow.i"
 	@echo "... mainwindow.s"
+	@echo "... shout_handler.o"
+	@echo "... shout_handler.i"
+	@echo "... shout_handler.s"
 	@echo "... streamer.o"
 	@echo "... streamer.i"
 	@echo "... streamer.s"
