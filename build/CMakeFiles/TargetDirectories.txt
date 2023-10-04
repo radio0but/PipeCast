@@ -1,4 +1,0 @@
-/home/arch-user/PipeCast/build/CMakeFiles/IcecastStreamer.dir
-/home/arch-user/PipeCast/build/CMakeFiles/edit_cache.dir
-/home/arch-user/PipeCast/build/CMakeFiles/rebuild_cache.dir
-/home/arch-user/PipeCast/build/CMakeFiles/IcecastStreamer_autogen.dir
