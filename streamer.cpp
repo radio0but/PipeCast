@@ -16,6 +16,7 @@ extern "C" {
 #include <spa/param/param.h>
 #include <pipewire/core.h>
 
+
 // Declare the function registry_event_global before its first usage
 void registry_event_global(void *data, uint32_t id, uint32_t parent_id, const char* type, uint32_t version, const struct spa_dict *props);
 // in shout_handler.h or shout_handler.cpp
@@ -53,9 +54,9 @@ extern int init_shout(const char *server, const char *port, const char *user, co
 static const struct spa_pod *global_format = NULL;
 
 // Definition of format_changed callback
-static void on_format_changed(void *user_data, const struct spa_pod *format) {
+/* static void on_format_changed(void *user_data, const struct spa_pod *format) {
     global_format = format;
-}
+} */
 
 // Your pw_stream_events structure
 
@@ -66,7 +67,14 @@ void print_audio_snippet(signed char *data, size_t size) {
     }
     std::cout << "..." << std::endl;
 }
-
+static void on_param_changed(void *user_data, uint32_t id, const struct spa_pod *param) {
+    if (id == SPA_PARAM_Format) {
+        global_format = param;
+        std::cout << "on_param_changed: global_format set." << std::endl;
+    } else {
+        std::cout << "on_param_changed: id is not SPA_PARAM_Format." << std::endl;
+    }
+}
 
 static const pw_registry_events registry_events = {
     PW_VERSION_REGISTRY_EVENTS,
@@ -75,8 +83,10 @@ static const pw_registry_events registry_events = {
 static const pw_stream_events stream_events = {
     PW_VERSION_STREAM_EVENTS,
     .state_changed = on_stream_state_changed,
+    .param_changed = on_param_changed,  // Changed from .format_changed = on_format_changed
     .process = on_process
 };
+
 
 uint32_t create_pipe_cast_node(pw_core *core) {
     uint8_t buffer[1024];
@@ -204,7 +214,7 @@ static void on_process(void *user_data) {
         std::cerr << "global_format is NULL." << std::endl;
         return;
     }
-
+    std::cout << "global_format: " << global_format << std::endl;
     struct spa_audio_info_raw info;
     if (spa_format_audio_raw_parse(global_format, &info) < 0) {
         std::cerr << "Failed to parse format." << std::endl;
@@ -265,19 +275,20 @@ static void on_process(void *user_data) {
                     int result = ogg_stream_pageout(&os, &og);
                     if(result==0) break;
 
-                    // Send the OGG data to Icecast
+                    // Modified code starts here
                     int ret;
                     ret = shout_send(shout_stream, og.header, og.header_len);
-                    if (ret != SHOUTERR_SUCCESS) {
-                        std::cerr << "Error sending header data: " << shout_get_error(shout_stream) << std::endl;
+                    if (ret != og.header_len) {
+                        std::cerr << "Error sending header data: " << shout_get_error(shout_stream)
+                                << ". Sent " << ret << " bytes out of " << og.header_len << " bytes." << std::endl;
                     }
 
                     ret = shout_send(shout_stream, og.body, og.body_len);
-                    if (ret != SHOUTERR_SUCCESS) {
-                        std::cerr << "Error sending body data: " << shout_get_error(shout_stream) << std::endl;
+                    if (ret != og.body_len) {
+                        std::cerr << "Error sending body data: " << shout_get_error(shout_stream)
+                                << ". Sent " << ret << " bytes out of " << og.body_len << " bytes." << std::endl;
                     }
-
-                }
+                }    
             }
         }
         
@@ -290,16 +301,25 @@ static void on_process(void *user_data) {
 static void on_stream_state_changed(void *user_data, enum pw_stream_state old, enum pw_stream_state state, const char *error) {
     switch (state) {
         case PW_STREAM_STATE_PAUSED:
-            std::cout << "Stream is paused." << std::endl;
+            // Handling for paused state if needed
             break;
         case PW_STREAM_STATE_ERROR:
-            std::cerr << "Error while creating PipeCast node: " << error << std::endl;
+            std::cerr << "Error: " << error << std::endl;
             pw_main_loop_quit(pipewire_loop);
             break;
         default:
+            // Optionally, you might want to log or handle other states here
+            std::cerr << "Stream state changed: " << state << std::endl;
             break;
     }
 }
+
+
+
+
+
+
+
 
 
 
